@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
 import traceback
@@ -608,16 +609,16 @@ ax_ror.set_facecolor('none')
 ax_ror.tick_params(colors="#a3e635",labelsize=10)
 ax_ror.spines['right'].set_color('#a3e635')
 ax_ror.set_ylabel("RoR (°C/min)", color="#a3e635")
-ln_et,=ax1.plot([],[],label="ET",linewidth=2.2,color="#60a5fa")
-ln_bt,=ax1.plot([],[],label="BT_est",linewidth=2.2,color="#f59e0b")
-ln_set,=ax1.plot([],[],label="Set",linewidth=1.6,color="#94a3b8",linestyle="--")
-ln_bt_proj,=ax1.plot([],[],label="BT forecast",linewidth=1.2,linestyle=":",color="#f59e0b")
-ln_et_proj,=ax1.plot([],[],label="ET forecast",linewidth=1.2,linestyle=":",color="#60a5fa")
-design_bt_line,=ax1.plot([],[],label="BT diseño",linewidth=1.6,linestyle="-.",color="#fb923c",alpha=0.85)
-design_et_line,=ax1.plot([],[],label="ET diseño",linewidth=1.6,linestyle="-.",color="#60a5fa",alpha=0.55)
-design_bt_points,=ax1.plot([],[],marker="s",markersize=5,color="#f97316",linestyle="None",alpha=0.9,label="_nolegend_")
-design_et_points,=ax1.plot([],[],marker="s",markersize=5,color="#3b82f6",linestyle="None",alpha=0.9,label="_nolegend_")
-eta1_line=ax1.axvline(np.nan,color="#f472b6",linestyle="--",linewidth=1.2,alpha=0.85,label="ETA 1C")
+ln_et,=ax1.plot([],[],label="ET",linewidth=1.2,color="#60a5fa")
+ln_bt,=ax1.plot([],[],label="BT_est",linewidth=1.2,color="#f59e0b")
+ln_set,=ax1.plot([],[],label="Set",linewidth=1.0,color="#94a3b8",linestyle="--")
+ln_bt_proj,=ax1.plot([],[],label="BT forecast",linewidth=0.9,linestyle=":",color="#f59e0b")
+ln_et_proj,=ax1.plot([],[],label="ET forecast",linewidth=0.9,linestyle=":",color="#60a5fa")
+design_bt_line,=ax1.plot([],[],label="BT diseño",linewidth=1.0,linestyle="-.",color="#fb923c",alpha=0.85)
+design_et_line,=ax1.plot([],[],label="ET diseño",linewidth=1.0,linestyle="-.",color="#60a5fa",alpha=0.55)
+design_bt_points,=ax1.plot([],[],marker="s",markersize=4,color="#f97316",linestyle="None",alpha=0.9,label="_nolegend_")
+design_et_points,=ax1.plot([],[],marker="s",markersize=4,color="#3b82f6",linestyle="None",alpha=0.9,label="_nolegend_")
+eta1_line=ax1.axvline(np.nan,color="#f472b6",linestyle="--",linewidth=1.0,alpha=0.85,label="ETA 1C")
 eta1_line.set_visible(False)
 bt_now_marker,=ax1.plot([],[],marker="o",markersize=5,color="#f59e0b",linestyle="None",alpha=0.9,label="_nolegend_")
 bt_future_marker,=ax1.plot([],[],marker="D",markersize=6,color="#f59e0b",linestyle="None",fillstyle="none",alpha=0.9,label="_nolegend_")
@@ -627,12 +628,17 @@ bt_info_text=ax1.text(0.02,0.96,"",transform=ax1.transAxes,color="#fbbf24",fonts
 et_info_text=ax1.text(0.02,0.88,"",transform=ax1.transAxes,color="#93c5fd",fontsize=10,va="top")
 eta1_plot_text=ax1.text(0.98,0.96,"",transform=ax1.transAxes,color="#f472b6",fontsize=10,va="top",ha="right")
 ax1.set_ylim(90.0, 240.0)
-ln_ror,=ax_ror.plot([],[],label="RoR",linewidth=2.0,color="#a3e635")
-ln_ror_t,=ax_ror.plot([],[],label="RoR target",linewidth=1.6,color="#ef4444",linestyle="--")
+ln_ror,=ax_ror.plot([],[],label="RoR",linewidth=1.1,color="#a3e635")
+ln_ror_t,=ax_ror.plot([],[],label="RoR target",linewidth=1.0,color="#ef4444",linestyle="--")
+phase_text=ax1.text(0.5,0.02,"",transform=ax1.transAxes,color=FG,fontsize=10,ha="center",va="bottom",
+                    bbox=dict(boxstyle="round,pad=0.35", fc=GLASS, ec=GRID, alpha=0.85))
+event_legend_handles={}
 def refresh_legend():
     handles, labels = ax1.get_legend_handles_labels()
     ror_handles, ror_labels = ax_ror.get_legend_handles_labels()
-    ax1.legend(handles+ror_handles, labels+ror_labels, facecolor=BG, labelcolor=FG, edgecolor=GRID,
+    ev_handles=list(event_legend_handles.values())
+    ev_labels=[h.get_label() for h in ev_handles]
+    ax1.legend(handles+ror_handles+ev_handles, labels+ror_labels+ev_labels, facecolor=BG, labelcolor=FG, edgecolor=GRID,
                loc="upper left", bbox_to_anchor=(1.02,1.0), borderaxespad=0.0)
 refresh_legend()
 ax1.set_xlabel("Tiempo (min)")
@@ -686,6 +692,9 @@ events_panel=ttk.LabelFrame(plot_body, text="🗓️ Eventos del tueste", style=
 events_panel.grid(row=1, column=0, columnspan=2, sticky="ew", padx=(0,0))
 events_panel.columnconfigure(0, weight=1)
 events_panel.columnconfigure(1, weight=1)
+event_time_vars={n: tk.StringVar(value="—:—") for n in ["CHARGE","TP","DRY_END","1C","2C","DROP"]}
+event_temp_vars={n: tk.StringVar(value="—.— °C") for n in ["CHARGE","TP","DRY_END","1C","2C","DROP"]}
+phase_var=tk.StringVar(value="Fases: —")
 
 event_buttons=ttk.Frame(events_panel, style="Card.TFrame")
 event_buttons.grid(row=0, column=0, sticky="w")
@@ -697,6 +706,16 @@ ttk.Button(events_panel, textvariable=side_toggle_text, command=toggle_side_cont
 export_buttons=ttk.Frame(events_panel, style="Card.TFrame")
 export_buttons.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8,0))
 ttk.Button(export_buttons, text="💾 Exportar CSV/PNG", command=export_all).pack(side="left", padx=4, pady=2)
+
+summary_frame=ttk.Frame(events_panel, style="Card.TFrame")
+summary_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10,0))
+summary_frame.columnconfigure(1, weight=1)
+labels=[("CHARGE","⚪"),("TP","🔼"),("DRY_END","🟠"),("1C","🔴"),("2C","🟣"),("DROP","⚫")]
+for r,(name,icon) in enumerate(labels):
+    ttk.Label(summary_frame, text=f"{icon} {name}", style="CardText.TLabel").grid(row=r, column=0, sticky="w", padx=(0,8), pady=2)
+    ttk.Label(summary_frame, textvariable=event_time_vars[name], style="CardText.TLabel").grid(row=r, column=1, sticky="w", pady=2)
+    ttk.Label(summary_frame, textvariable=event_temp_vars[name], style="CardText.TLabel").grid(row=r, column=2, sticky="w", padx=(8,0), pady=2)
+ttk.Label(summary_frame, textvariable=phase_var, style="CardText.TLabel").grid(row=len(labels), column=0, columnspan=3, sticky="w", pady=(8,0))
 
 history_path_var=tk.StringVar(value="Ninguna sesión cargada")
 comparison_status=tk.StringVar(value="0 tuestes cargados para comparar")
@@ -1007,22 +1026,88 @@ canvas.mpl_connect('motion_notify_event', on_design_motion)
 canvas.mpl_connect('button_release_event', on_design_release)
 
 event_artists=[]
+event_palette={
+    "CHARGE": {"color":"#fef08a", "marker":"o", "icon":"⚪"},
+    "TP": {"color":"#34d399", "marker":"v", "icon":"🔼"},
+    "DRY_END": {"color":"#fb923c", "marker":"s", "icon":"🟠"},
+    "1C": {"color":"#ef4444", "marker":"^", "icon":"🔴"},
+    "2C": {"color":"#a855f7", "marker":"D", "icon":"🟣"},
+    "DROP": {"color":"#22d3ee", "marker":"X", "icon":"⚫"},
+}
+
+def _fmt_time_sec(sec):
+    try:
+        mm=int(sec//60); ss=int(sec%60)
+        return f"{mm:02d}:{ss:02d}"
+    except Exception:
+        return "—:—"
+
+def _fmt_temp_c(temp):
+    try:
+        if not math.isfinite(float(temp)):
+            return "—.— °C"
+        return f"{float(temp):.1f} °C"
+    except Exception:
+        return "—.— °C"
+
+def update_event_summary():
+    by_name={}
+    for ev in S.events:
+        if ev.get("event"):
+            by_name[ev["event"]]=ev
+    for name in event_time_vars:
+        ev=by_name.get(name)
+        event_time_vars[name].set(_fmt_time_sec(ev["t_sec"]) if ev else "—:—")
+        event_temp_vars[name].set(_fmt_temp_c(ev.get("temp_c")) if ev else "—.— °C")
+
+    def _t(name):
+        ev=by_name.get(name)
+        return ev.get("t_sec") if ev else None
+
+    start=_t("CHARGE")
+    dry=_t("DRY_END")
+    fc=_t("1C")
+    drop=_t("DROP") if _t("DROP") is not None else (_t("2C") if _t("2C") is not None else None)
+    now_time=S.samples[-1]["t_sec"] if S.samples else None
+    end=drop if drop is not None else now_time
+    if start is None or end is None or end<=start:
+        phase_var.set("Fases: —")
+        phase_text.set_text("")
+        return
+    drying = (dry-start) if dry is not None and dry>start else None
+    maillard = (fc-dry) if fc is not None and dry is not None and fc>dry else None
+    development = (end-fc) if fc is not None and end>fc else None
+    total=end-start
+    parts=[]
+    if drying is not None:
+        parts.append(("Drying", max(0.0, drying)))
+    if maillard is not None:
+        parts.append(("Maillard", max(0.0, maillard)))
+    if development is not None:
+        parts.append(("Dev", max(0.0, development)))
+    if not parts:
+        phase_var.set("Fases: —")
+        phase_text.set_text("")
+        return
+    desc=[]
+    for name,dur in parts:
+        pct=dur*100.0/total if total>0 else 0.0
+        desc.append(f"{name} {pct:.1f}%")
+    phase_var.set("Fases: "+" | ".join(desc))
+    phase_text.set_text(" · ".join(desc))
 
 def annotate_event(name, t, temp_c):
     tmin = (t/60.0) if t is not None else 0.0
-    v=ax1.axvline(tmin, color="#f87171", linestyle="--", linewidth=1.2, alpha=0.9)
-    marker=ax1.plot(tmin, temp_c, marker="o", color="#f87171", markersize=5)[0]
-    text=ax1.text(
-        tmin,
-        temp_c+3,
-        f"{name}\n{(t/60):.2f} min @ {temp_c:.1f}°C",
-        color=FG,
-        bbox=dict(boxstyle="round,pad=0.3", fc=GLASS, ec=GRID, alpha=0.9),
-        ha="left",
-        va="bottom",
-        fontsize=9,
-    )
-    event_artists.append((v,marker,text))
+    cfg = event_palette.get(name, {"color":"#f87171", "marker":"o", "icon":name})
+    color, marker_shape = cfg.get("color"), cfg.get("marker")
+    v=ax1.axvline(tmin, color=color, linestyle="--", linewidth=0.9, alpha=0.85)
+    marker=ax1.plot(tmin, temp_c, marker=marker_shape, color=color, markersize=6, linestyle="None", label="_nolegend_")[0]
+    event_artists.append((v,marker))
+    if name not in event_legend_handles:
+        event_legend_handles[name]=Line2D([0],[0],color=color,marker=marker_shape,linestyle="None",markersize=6,
+                                          label=cfg.get("icon", name))
+    update_event_summary()
+    refresh_legend()
 
 def log_event(n):
     t=0.0 if not S.t0 else time.time()-S.t0
@@ -1042,16 +1127,20 @@ def log(msg):
 
 def redraw_empty():
     for arts in event_artists:
-        for a in arts: 
+        for a in arts:
             try: a.remove()
             except Exception: pass
     event_artists.clear()
+    event_legend_handles.clear()
     for ln in (ln_et, ln_bt, ln_set, ln_ror, ln_ror_t, ln_bt_proj, ln_et_proj,
                eta1_line,
                bt_now_marker, bt_future_marker, et_now_marker, et_future_marker):
         ln.set_data([],[])
     eta1_line.set_visible(False)
     bt_info_text.set_text(""); et_info_text.set_text(""); eta1_plot_text.set_text("")
+    for name in event_time_vars:
+        event_time_vars[name].set("—:—"); event_temp_vars[name].set("—.— °C")
+    phase_var.set("Fases: —"); phase_text.set_text("")
     canvas.draw_idle()
 
 def current_et_c():
@@ -1415,6 +1504,7 @@ def animate(_):
             pass
 
         count_var.set(f"Muestras: {len(S.samples)}")
+        update_event_summary()
     except Exception as e:
         log("Loop error: "+str(e)+"\\n"+traceback.format_exc())
 
