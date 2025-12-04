@@ -487,27 +487,41 @@ plot_card.pack(fill="both", expand=True, padx=16, pady=(0,12))
 
 plot_body=ttk.Frame(plot_card, style="Card.TFrame")
 plot_body.pack(fill="both", expand=True)
-plot_body.columnconfigure(0, weight=4)
-plot_body.columnconfigure(1, weight=1)
+plot_body.columnconfigure(0, weight=1)
+plot_body.columnconfigure(1, weight=0, minsize=320)
 plot_body.rowconfigure(0, weight=1)
 plot_body.rowconfigure(1, weight=0)
 
 plot_container=ttk.Frame(plot_body, style="Card.TFrame")
 plot_container.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=(4,6))
 
-side_controls=ttk.Frame(plot_body, style="Card.TFrame")
-side_controls.grid(row=0, column=1, sticky="n", pady=(4,6))
+drawer_shell=ttk.Frame(plot_body, style="Card.TFrame")
+drawer_shell.grid(row=0, column=1, sticky="ns", pady=(4,6))
+drawer_shell.grid_rowconfigure(0, weight=1)
+drawer_shell.grid_columnconfigure(0, weight=1)
+
+side_controls=ttk.Frame(drawer_shell, style="Card.TFrame")
+side_controls.grid(row=0, column=0, sticky="n")
 side_controls.columnconfigure(0, weight=1)
 
-side_toggle_text=tk.StringVar(value="Ocultar herramientas")
+side_toggle_text=tk.StringVar(value="⮜ Ocultar panel")
+side_collapsed=False
 
 def toggle_side_controls():
-    if side_controls.winfo_ismapped():
-        side_controls.grid_remove()
-        side_toggle_text.set("Mostrar herramientas")
-    else:
+    global side_collapsed
+    if side_collapsed:
         side_controls.grid()
-        side_toggle_text.set("Ocultar herramientas")
+        plot_body.grid_columnconfigure(1, minsize=320)
+        side_toggle_text.set("⮜ Ocultar panel")
+        side_collapsed=False
+    else:
+        side_controls.grid_remove()
+        plot_body.grid_columnconfigure(1, minsize=32)
+        side_toggle_text.set("⮞ Mostrar panel")
+        side_collapsed=True
+
+side_handle=ttk.Button(drawer_shell, textvariable=side_toggle_text, command=toggle_side_controls)
+side_handle.grid(row=1, column=0, sticky="ew", pady=(10,0))
 
 design_panel=ttk.LabelFrame(side_controls, text="🎯 Modo diseño de perfil", style="Card.TLabelframe", padding=(12, 10))
 design_panel.grid(row=0, column=0, sticky="ew", pady=(0, 10))
