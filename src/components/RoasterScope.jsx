@@ -64,9 +64,34 @@ export default function RoasterScope({
   // Axis domains – tuned to resemble the screenshot
   const TEMP_MIN = 0;
   const TEMP_MAX = 260; // °C
+  const TEMP_STEP = 10;
   const ROR_MIN = 0;
   const ROR_MAX = 50; // °C/min
-  const TIME_MAX = Math.max(10, Math.ceil((withRoR.at(-1)?.t ?? 10))); // ~10 min span
+  const TIME_MIN = 0;
+  const TIME_BASE_MAX = 16;
+  const TIME_STEP = 2;
+
+  const TIME_MAX = useMemo(() => {
+    const latestPoint = withRoR.at(-1)?.t ?? TIME_BASE_MAX;
+    const roundedMax = Math.ceil(latestPoint / TIME_STEP) * TIME_STEP;
+    return Math.max(TIME_BASE_MAX, roundedMax);
+  }, [TIME_STEP, TIME_BASE_MAX, withRoR]);
+
+  const timeTicks = useMemo(() => {
+    const ticks = [];
+    for (let t = TIME_MIN; t <= TIME_MAX; t += TIME_STEP) {
+      ticks.push(t);
+    }
+    return ticks;
+  }, [TIME_MAX]);
+
+  const tempTicks = useMemo(() => {
+    const ticks = [];
+    for (let t = TEMP_MIN; t <= TEMP_MAX; t += TEMP_STEP) {
+      ticks.push(t);
+    }
+    return ticks;
+  }, []);
 
   return (
     <div className="w-full h-[80vh] bg-neutral-950 text-neutral-50 p-3 select-none">
@@ -104,10 +129,12 @@ export default function RoasterScope({
               <XAxis
                 dataKey="t"
                 type="number"
-                domain={[0, TIME_MAX]}
+                domain={[TIME_MIN, TIME_MAX]}
+                ticks={timeTicks}
                 tick={{ fill: "#bfbfbf" }}
                 axisLine={{ stroke: "#777" }}
                 tickLine={{ stroke: "#777" }}
+                minTickGap={12}
               >
                 <Label value="time (min)" position="insideBottomRight" offset={-4} fill="#bfbfbf" />
               </XAxis>
@@ -116,6 +143,7 @@ export default function RoasterScope({
                 yAxisId="temp"
                 orientation="left"
                 domain={[TEMP_MIN, TEMP_MAX]}
+                ticks={tempTicks}
                 tick={{ fill: "#bfbfbf" }}
                 axisLine={{ stroke: "#777" }}
                 tickLine={{ stroke: "#777" }}
