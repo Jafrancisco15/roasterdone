@@ -395,13 +395,20 @@ def wizard_two_points():
 
 def start_run():
     try:
+        S.reader.start()
         S.running=True; RUNVAR.set("RUN: True")
         if S.t0 is None: S.t0=time.time()
         log("Start OK")
     except Exception as e:
         log("Start ERROR: "+str(e))
 def stop_run():
-    S.running=False; RUNVAR.set("RUN: False"); log("Stop")
+    S.running=False; RUNVAR.set("RUN: False")
+    try:
+        S.reader.stop()
+    except Exception as e:
+        log(f"Stop error: {e}")
+    else:
+        log("Stop")
 def reset_session():
     S.running=False; RUNVAR.set("RUN: False")
     S.samples.clear(); S.events.clear()
@@ -796,11 +803,15 @@ def add_comparison_trace():
 
 def clear_comparisons():
     for trace in comparison_traces:
-        trace["line"].set_data([],[])
-        trace["ror_line"].set_data([],[])
+        try:
+            trace["line"].remove()
+            trace["ror_line"].remove()
+        except Exception:
+            pass
     comparison_traces.clear()
     comparison_status.set("0 tuestes cargados para comparar")
-    redraw_overlays()
+    refresh_legend()
+    canvas.draw_idle()
 
 ttk.Button(history_panel, text="📂 Cargar sesión previa", command=load_previous_session).grid(row=0, column=0, sticky="w", padx=(0,8))
 ttk.Label(history_panel, textvariable=history_path_var, style="CardText.TLabel").grid(row=0, column=1, sticky="w")
