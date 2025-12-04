@@ -1,0 +1,1 @@
+Coloca aqui un archivo 'logo.png' y se mostrará en la barra.

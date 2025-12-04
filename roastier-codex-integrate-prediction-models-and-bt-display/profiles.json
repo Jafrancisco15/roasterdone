@@ -1,0 +1,17 @@
+{
+  "natural":{"espresso":{"alpha":0.12,"rorTarget":8.0,"devMin":18,"devMax":26,"firstCrackBT":196,"dropBT":208},
+             "filter":{"alpha":0.14,"rorTarget":7.0,"devMin":16,"devMax":24,"firstCrackBT":195,"dropBT":204},
+             "both":{"alpha":0.13,"rorTarget":7.5,"devMin":17,"devMax":25,"firstCrackBT":195,"dropBT":206}},
+  "honey":{"espresso":{"alpha":0.11,"rorTarget":7.5,"devMin":17,"devMax":24,"firstCrackBT":196,"dropBT":207},
+           "filter":{"alpha":0.13,"rorTarget":6.8,"devMin":16,"devMax":23,"firstCrackBT":195,"dropBT":203},
+           "both":{"alpha":0.12,"rorTarget":7.2,"devMin":16,"devMax":24,"firstCrackBT":195,"dropBT":205}},
+  "anaerobico":{"espresso":{"alpha":0.10,"rorTarget":7.0,"devMin":19,"devMax":27,"firstCrackBT":197,"dropBT":210},
+                "filter":{"alpha":0.12,"rorTarget":6.5,"devMin":18,"devMax":26,"firstCrackBT":196,"dropBT":206},
+                "both":{"alpha":0.11,"rorTarget":6.8,"devMin":18,"devMax":26,"firstCrackBT":196,"dropBT":208}},
+  "levadura":{"espresso":{"alpha":0.11,"rorTarget":7.2,"devMin":18,"devMax":26,"firstCrackBT":196,"dropBT":208},
+              "filter":{"alpha":0.13,"rorTarget":6.7,"devMin":17,"devMax":24,"firstCrackBT":195,"dropBT":204},
+              "both":{"alpha":0.12,"rorTarget":7.0,"devMin":17,"devMax":25,"firstCrackBT":195,"dropBT":206}},
+  "lavado":{"espresso":{"alpha":0.12,"rorTarget":7.0,"devMin":16,"devMax":22,"firstCrackBT":194,"dropBT":203},
+            "filter":{"alpha":0.14,"rorTarget":6.5,"devMin":15,"devMax":21,"firstCrackBT":193,"dropBT":200},
+            "both":{"alpha":0.13,"rorTarget":6.8,"devMin":15,"devMax":22,"firstCrackBT":193,"dropBT":201}}
+}
