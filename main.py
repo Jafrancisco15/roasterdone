@@ -490,6 +490,7 @@ plot_body.pack(fill="both", expand=True)
 plot_body.columnconfigure(0, weight=4)
 plot_body.columnconfigure(1, weight=1)
 plot_body.rowconfigure(0, weight=1)
+plot_body.rowconfigure(1, weight=0)
 
 plot_container=ttk.Frame(plot_body, style="Card.TFrame")
 plot_container.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=(4,6))
@@ -497,6 +498,16 @@ plot_container.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=(4,6))
 side_controls=ttk.Frame(plot_body, style="Card.TFrame")
 side_controls.grid(row=0, column=1, sticky="n", pady=(4,6))
 side_controls.columnconfigure(0, weight=1)
+
+side_toggle_text=tk.StringVar(value="Ocultar herramientas")
+
+def toggle_side_controls():
+    if side_controls.winfo_ismapped():
+        side_controls.grid_remove()
+        side_toggle_text.set("Mostrar herramientas")
+    else:
+        side_controls.grid()
+        side_toggle_text.set("Ocultar herramientas")
 
 design_panel=ttk.LabelFrame(side_controls, text="🎯 Modo diseño de perfil", style="Card.TLabelframe", padding=(12, 10))
 design_panel.grid(row=0, column=0, sticky="ew", pady=(0, 10))
@@ -563,14 +574,6 @@ view_panel.grid(row=2, column=0, sticky="ew", pady=(0, 10))
 view_panel.columnconfigure(1, weight=1)
 view_panel.columnconfigure(3, weight=1)
 view_panel.columnconfigure(5, weight=1)
-
-events_panel=ttk.LabelFrame(side_controls, text="🗓️ Eventos del tueste", style="Card.TLabelframe", padding=(12, 10))
-events_panel.grid(row=3, column=0, sticky="ew")
-event_buttons=ttk.Frame(events_panel, style="Card.TFrame")
-event_buttons.pack(fill="x")
-for name in ["CHARGE","TP","DRY_END","1C","2C","DROP"]:
-    ttk.Button(event_buttons, text=f"📌 {name}", command=lambda n=name: log_event(n)).pack(side="left", padx=4, pady=2)
-ttk.Button(event_buttons, text="💾 Exportar CSV/PNG", command=export_all).pack(side="left", padx=4, pady=2)
 fig,ax1=plt.subplots(1,1,figsize=(11.2,6.6),dpi=110)
 fig.subplots_adjust(right=0.83)
 fig.patch.set_facecolor(BG)
@@ -657,6 +660,22 @@ ttk.Label(view_panel, text="RoR escala", style="CardText.TLabel").grid(row=0, co
 ror_slider=ttk.Scale(view_panel, from_=6, to=30, variable=ror_scale_var, command=lambda *_: apply_view_range())
 ror_slider.grid(row=0, column=5, sticky="ew")
 apply_view_range()
+
+events_panel=ttk.LabelFrame(plot_body, text="🗓️ Eventos del tueste", style="Card.TLabelframe", padding=(12, 10))
+events_panel.grid(row=1, column=0, columnspan=2, sticky="ew", padx=(0,0))
+events_panel.columnconfigure(0, weight=1)
+events_panel.columnconfigure(1, weight=1)
+
+event_buttons=ttk.Frame(events_panel, style="Card.TFrame")
+event_buttons.grid(row=0, column=0, sticky="w")
+for name in ["CHARGE","TP","DRY_END","1C","2C","DROP"]:
+    ttk.Button(event_buttons, text=f"📌 {name}", command=lambda n=name: log_event(n)).pack(side="left", padx=4, pady=2)
+
+ttk.Button(events_panel, textvariable=side_toggle_text, command=toggle_side_controls).grid(row=0, column=1, sticky="e")
+
+export_buttons=ttk.Frame(events_panel, style="Card.TFrame")
+export_buttons.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8,0))
+ttk.Button(export_buttons, text="💾 Exportar CSV/PNG", command=export_all).pack(side="left", padx=4, pady=2)
 
 history_path_var=tk.StringVar(value="Ninguna sesión cargada")
 comparison_status=tk.StringVar(value="0 tuestes cargados para comparar")
