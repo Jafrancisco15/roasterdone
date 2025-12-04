@@ -447,6 +447,9 @@ menubar=tk.Menu(root)
 file_menu=tk.Menu(menubar, tearoff=0)
 file_menu.add_command(label="Exportar CSV/PNG", command=export_all)
 file_menu.add_separator()
+file_menu.add_command(label="Importar sesión previa", command=load_previous_session)
+file_menu.add_command(label="Añadir tueste a comparación", command=add_comparison_trace)
+file_menu.add_separator()
 file_menu.add_command(label="Salir", command=root.destroy)
 menubar.add_cascade(label="Archivo", menu=file_menu)
 
@@ -482,8 +485,21 @@ plt.rcParams.update({
 plot_card=ttk.LabelFrame(main_area, text="📈 Seguimiento en vivo", style="Card.TLabelframe", padding=(12, 10))
 plot_card.pack(fill="both", expand=True, padx=16, pady=(0,12))
 
-design_panel=ttk.LabelFrame(plot_card, text="🎯 Modo diseño de perfil", style="Card.TLabelframe", padding=(12, 10))
-design_panel.pack(fill="x", padx=8, pady=(0, 12))
+plot_body=ttk.Frame(plot_card, style="Card.TFrame")
+plot_body.pack(fill="both", expand=True)
+plot_body.columnconfigure(0, weight=4)
+plot_body.columnconfigure(1, weight=1)
+plot_body.rowconfigure(0, weight=1)
+
+plot_container=ttk.Frame(plot_body, style="Card.TFrame")
+plot_container.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=(4,6))
+
+side_controls=ttk.Frame(plot_body, style="Card.TFrame")
+side_controls.grid(row=0, column=1, sticky="n", pady=(4,6))
+side_controls.columnconfigure(0, weight=1)
+
+design_panel=ttk.LabelFrame(side_controls, text="🎯 Modo diseño de perfil", style="Card.TLabelframe", padding=(12, 10))
+design_panel.grid(row=0, column=0, sticky="ew", pady=(0, 10))
 
 design_mode_var=tk.BooleanVar(value=False)
 design_curve_var=tk.StringVar(value="BT")
@@ -538,16 +554,23 @@ def toggle_design_panel():
 
 ttk.Button(design_header, textvariable=design_collapse_text, command=toggle_design_panel).pack(side="right")
 
-events_panel=ttk.LabelFrame(plot_card, text="🗓️ Eventos del tueste", style="Card.TLabelframe", padding=(12, 10))
-events_panel.pack(fill="x", padx=8, pady=(0, 12))
+history_panel=ttk.LabelFrame(side_controls, text="📂 Historial y comparación", style="Card.TLabelframe", padding=(12, 10))
+history_panel.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+history_panel.columnconfigure(1, weight=1)
+
+view_panel=ttk.LabelFrame(side_controls, text="🧭 Navegación de gráfica", style="Card.TLabelframe", padding=(12, 10))
+view_panel.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+view_panel.columnconfigure(1, weight=1)
+view_panel.columnconfigure(3, weight=1)
+view_panel.columnconfigure(5, weight=1)
+
+events_panel=ttk.LabelFrame(side_controls, text="🗓️ Eventos del tueste", style="Card.TLabelframe", padding=(12, 10))
+events_panel.grid(row=3, column=0, sticky="ew")
 event_buttons=ttk.Frame(events_panel, style="Card.TFrame")
 event_buttons.pack(fill="x")
 for name in ["CHARGE","TP","DRY_END","1C","2C","DROP"]:
     ttk.Button(event_buttons, text=f"📌 {name}", command=lambda n=name: log_event(n)).pack(side="left", padx=4, pady=2)
 ttk.Button(event_buttons, text="💾 Exportar CSV/PNG", command=export_all).pack(side="left", padx=4, pady=2)
-
-plot_container=ttk.Frame(plot_card, style="Card.TFrame")
-plot_container.pack(fill="both", expand=True)
 fig,ax1=plt.subplots(1,1,figsize=(11.2,6.6),dpi=110)
 fig.subplots_adjust(right=0.83)
 fig.patch.set_facecolor(BG)
@@ -593,12 +616,6 @@ canvas=FigureCanvasTkAgg(fig, master=plot_container)
 canvas_widget=canvas.get_tk_widget()
 canvas_widget.pack(fill="both",expand=True)
 
-view_panel=ttk.LabelFrame(plot_card, text="🧭 Navegación de gráfica", style="Card.TLabelframe", padding=(12, 10))
-view_panel.pack(fill="x", padx=8, pady=(6, 10))
-view_panel.columnconfigure(1, weight=1)
-view_panel.columnconfigure(3, weight=1)
-view_panel.columnconfigure(5, weight=1)
-
 x_window_var=tk.DoubleVar(value=8.0)
 x_offset_var=tk.DoubleVar(value=0.0)
 ror_scale_var=tk.DoubleVar(value=12.0)
@@ -641,16 +658,12 @@ ror_slider=ttk.Scale(view_panel, from_=6, to=30, variable=ror_scale_var, command
 ror_slider.grid(row=0, column=5, sticky="ew")
 apply_view_range()
 
-history_panel=ttk.LabelFrame(plot_card, text="📂 Historial y comparación", style="Card.TLabelframe", padding=(12, 10))
-history_panel.pack(fill="x", padx=8, pady=(0, 12))
-history_panel.columnconfigure(1, weight=1)
-
 history_path_var=tk.StringVar(value="Ninguna sesión cargada")
 comparison_status=tk.StringVar(value="0 tuestes cargados para comparar")
 
 def _parse_session_csv(path):
     try:
-        df=pd.read_csv(path)
+        df=pd.read_csv(path, sep=None, engine="python")
     except Exception as e:
         messagebox.showerror("Cargar sesión", f"No se pudo leer el archivo: {e}")
         return None
@@ -661,17 +674,38 @@ def _parse_session_csv(path):
         samples=df
         events_path=path.replace('.samples.csv','.events.csv')
         if os.path.exists(events_path):
-            events=pd.read_csv(events_path)
+            events=pd.read_csv(events_path, sep=None, engine="python")
         else:
             events=pd.DataFrame()
     else:
         samples=df
         events=pd.DataFrame()
+
+    def _col(df, *names):
+        for n in names:
+            if n in df.columns:
+                return pd.to_numeric(df[n], errors='coerce')
+        return pd.Series([], dtype=float)
+
+    t=_col(samples,'t_sec','time_sec','t','time')
+    et=_col(samples,'et_c','ET','et')
+    bt=_col(samples,'bt_est_c','BT','bt')
+    ror=_col(samples,'ror','RoR')
+    if ror.empty and not bt.empty and len(bt)>1 and len(t)>1:
+        try:
+            dt=np.diff(t)/60.0
+            dbt=np.diff(bt)
+            ror=pd.Series(np.append([np.nan], dbt/dt), dtype=float)
+        except Exception:
+            ror=pd.Series([], dtype=float)
+    if t.empty or (not any(pd.notna(t)) and len(samples)==0):
+        messagebox.showwarning("Cargar sesión", "El archivo no contiene muestras de tueste legibles.")
+        return None
     return {
-        "t": list(samples.get('t_sec', [])),
-        "et": list(samples.get('et_c', [])),
-        "bt": list(samples.get('bt_est_c', [])),
-        "ror": list(samples.get('ror', [])),
+        "t": list(t.fillna(0.0)),
+        "et": list(et.fillna(method='ffill').fillna(method='bfill')),
+        "bt": list(bt.fillna(method='ffill').fillna(method='bfill')),
+        "ror": list(ror.fillna(method='ffill').fillna(method='bfill')),
         "events": events.to_dict(orient='records'),
         "name": os.path.basename(path),
     }
