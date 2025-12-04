@@ -2,6 +2,7 @@
 import os, time, json, math, tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import numpy as np
+import pandas as pd
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -547,16 +548,19 @@ ttk.Button(event_buttons, text="💾 Exportar CSV/PNG", command=export_all).pack
 
 plot_container=ttk.Frame(plot_card, style="Card.TFrame")
 plot_container.pack(fill="both", expand=True)
-fig,(ax1,ax2)=plt.subplots(2,1,figsize=(10.5,7.0),dpi=110)
-fig.subplots_adjust(right=0.8)
+fig,ax1=plt.subplots(1,1,figsize=(11.2,6.6),dpi=110)
+fig.subplots_adjust(right=0.83)
 fig.patch.set_facecolor(BG)
-for ax in (ax1,ax2):
-    ax.set_facecolor(BG); ax.tick_params(colors=FG,labelsize=10)
-    for sp in ax.spines.values(): sp.set_color(GRID)
-    ax.grid(True,color=GRID,alpha=0.35,linewidth=0.7)
-ax1.set_title("Temperaturas del tueste (ET vs BT)"); ax2.set_title("Rate of Rise (objetivo vs real)")
+ax1.set_facecolor(BG); ax1.tick_params(colors=FG,labelsize=10)
+for sp in ax1.spines.values(): sp.set_color(GRID)
+ax1.grid(True,color=GRID,alpha=0.35,linewidth=0.7)
+ax1.set_title("Roaster Scope — BT/ET + RoR")
 ax1.set_ylabel("Temperatura (°C)")
-ax2.set_ylabel("°C / min")
+ax_ror=ax1.twinx()
+ax_ror.set_facecolor('none')
+ax_ror.tick_params(colors="#a3e635",labelsize=10)
+ax_ror.spines['right'].set_color('#a3e635')
+ax_ror.set_ylabel("RoR (°C/min)", color="#a3e635")
 ln_et,=ax1.plot([],[],label="ET",linewidth=2.2,color="#60a5fa")
 ln_bt,=ax1.plot([],[],label="BT_est",linewidth=2.2,color="#f59e0b")
 ln_set,=ax1.plot([],[],label="Set",linewidth=1.6,color="#94a3b8",linestyle="--")
@@ -575,15 +579,168 @@ et_future_marker,=ax1.plot([],[],marker="D",markersize=6,color="#60a5fa",linesty
 bt_info_text=ax1.text(0.02,0.96,"",transform=ax1.transAxes,color="#fbbf24",fontsize=10,va="top")
 et_info_text=ax1.text(0.02,0.88,"",transform=ax1.transAxes,color="#93c5fd",fontsize=10,va="top")
 eta1_plot_text=ax1.text(0.98,0.96,"",transform=ax1.transAxes,color="#f472b6",fontsize=10,va="top",ha="right")
-ax1.set_ylim(0.0, 250.0)
-ax1.legend(facecolor=BG, labelcolor=FG, edgecolor=GRID, loc="upper left", bbox_to_anchor=(1.02,1.0), borderaxespad=0.0)
-ln_ror,=ax2.plot([],[],label="RoR",linewidth=2.0,color="#a3e635")
-ln_ror_t,=ax2.plot([],[],label="RoR target",linewidth=1.6,color="#ef4444",linestyle="--")
-ax2.legend(facecolor=BG, labelcolor=FG, edgecolor=GRID, loc="upper left", bbox_to_anchor=(1.02,1.0), borderaxespad=0.0)
-ax1.set_xlabel("Tiempo (min)"); ax2.set_xlabel("Tiempo (min)")
+ax1.set_ylim(90.0, 240.0)
+ln_ror,=ax_ror.plot([],[],label="RoR",linewidth=2.0,color="#a3e635")
+ln_ror_t,=ax_ror.plot([],[],label="RoR target",linewidth=1.6,color="#ef4444",linestyle="--")
+def refresh_legend():
+    handles, labels = ax1.get_legend_handles_labels()
+    ror_handles, ror_labels = ax_ror.get_legend_handles_labels()
+    ax1.legend(handles+ror_handles, labels+ror_labels, facecolor=BG, labelcolor=FG, edgecolor=GRID,
+               loc="upper left", bbox_to_anchor=(1.02,1.0), borderaxespad=0.0)
+refresh_legend()
+ax1.set_xlabel("Tiempo (min)")
 canvas=FigureCanvasTkAgg(fig, master=plot_container)
 canvas_widget=canvas.get_tk_widget()
 canvas_widget.pack(fill="both",expand=True)
+
+view_panel=ttk.LabelFrame(plot_card, text="🧭 Navegación de gráfica", style="Card.TLabelframe", padding=(12, 10))
+view_panel.pack(fill="x", padx=8, pady=(6, 10))
+view_panel.columnconfigure(1, weight=1)
+view_panel.columnconfigure(3, weight=1)
+view_panel.columnconfigure(5, weight=1)
+
+x_window_var=tk.DoubleVar(value=8.0)
+x_offset_var=tk.DoubleVar(value=0.0)
+ror_scale_var=tk.DoubleVar(value=12.0)
+
+def apply_view_range():
+    try:
+        width=max(1.0,float(x_window_var.get()))
+    except Exception:
+        width=8.0
+    try:
+        offset=max(0.0,float(x_offset_var.get()))
+    except Exception:
+        offset=0.0
+    start=offset
+    end=start+width
+    ax1.set_xlim(start,end)
+    try:
+        rmax=max(1.0,float(ror_scale_var.get()))
+    except Exception:
+        rmax=12.0
+    ax_ror.set_ylim(-rmax*0.25, rmax)
+    canvas.draw_idle()
+
+def update_pan_limit(xmax_min):
+    try:
+        width=max(1.0,float(x_window_var.get()))
+    except Exception:
+        width=8.0
+    x_offset_var.set(min(x_offset_var.get(), max(0.0, xmax_min-width)))
+    pan_slider.configure(to=max(0.0, xmax_min-width))
+
+ttk.Label(view_panel, text="Zoom (min)", style="CardText.TLabel").grid(row=0, column=0, sticky="w")
+zoom_slider=ttk.Scale(view_panel, from_=2, to=18, variable=x_window_var, command=lambda *_: apply_view_range())
+zoom_slider.grid(row=0, column=1, sticky="ew", padx=(6,12))
+ttk.Label(view_panel, text="Pan (min)", style="CardText.TLabel").grid(row=0, column=2, sticky="w")
+pan_slider=ttk.Scale(view_panel, from_=0, to=20, variable=x_offset_var, command=lambda *_: apply_view_range())
+pan_slider.grid(row=0, column=3, sticky="ew", padx=(6,12))
+ttk.Label(view_panel, text="RoR escala", style="CardText.TLabel").grid(row=0, column=4, sticky="w")
+ror_slider=ttk.Scale(view_panel, from_=6, to=30, variable=ror_scale_var, command=lambda *_: apply_view_range())
+ror_slider.grid(row=0, column=5, sticky="ew")
+apply_view_range()
+
+history_panel=ttk.LabelFrame(plot_card, text="📂 Historial y comparación", style="Card.TLabelframe", padding=(12, 10))
+history_panel.pack(fill="x", padx=8, pady=(0, 12))
+history_panel.columnconfigure(1, weight=1)
+
+history_path_var=tk.StringVar(value="Ninguna sesión cargada")
+comparison_status=tk.StringVar(value="0 tuestes cargados para comparar")
+
+def _parse_session_csv(path):
+    try:
+        df=pd.read_csv(path)
+    except Exception as e:
+        messagebox.showerror("Cargar sesión", f"No se pudo leer el archivo: {e}")
+        return None
+    if 'row_type' in df.columns:
+        samples=df[df['row_type']=='sample']
+        events=df[df['row_type']=='event']
+    elif path.endswith('.samples.csv'):
+        samples=df
+        events_path=path.replace('.samples.csv','.events.csv')
+        if os.path.exists(events_path):
+            events=pd.read_csv(events_path)
+        else:
+            events=pd.DataFrame()
+    else:
+        samples=df
+        events=pd.DataFrame()
+    return {
+        "t": list(samples.get('t_sec', [])),
+        "et": list(samples.get('et_c', [])),
+        "bt": list(samples.get('bt_est_c', [])),
+        "ror": list(samples.get('ror', [])),
+        "events": events.to_dict(orient='records'),
+        "name": os.path.basename(path),
+    }
+
+overlay_colors=["#f87171", "#34d399", "#c084fc", "#22d3ee", "#facc15"]
+history_overlay={"lines":None, "data":None}
+comparison_traces=[]
+
+def redraw_overlays():
+    if history_overlay["lines"] and history_overlay["data"]:
+        d=history_overlay["data"]
+        history_overlay["lines"]["bt"].set_data([t/60.0 for t in d['t']], d['bt'])
+        history_overlay["lines"]["et"].set_data([t/60.0 for t in d['t']], d['et'])
+        history_overlay["lines"]["ror"].set_data([t/60.0 for t in d['t']], d['ror'])
+    for trace in comparison_traces:
+        data=trace["data"]
+        color=trace["color"]
+        trace["line"].set_data([t/60.0 for t in data['t']], data['bt'])
+        trace["ror_line"].set_data([t/60.0 for t in data['t']], data['ror'])
+        trace["line"].set_color(color)
+        trace["ror_line"].set_color(color)
+    refresh_legend()
+    canvas.draw_idle()
+
+def load_previous_session():
+    path=filedialog.askopenfilename(filetypes=(("Datos de tueste","*.csv"),("Todos","*.*")))
+    if not path:
+        return
+    data=_parse_session_csv(path)
+    if not data:
+        return
+    history_path_var.set(f"Sesión: {data['name']}")
+    if not history_overlay["lines"]:
+        history_overlay["lines"]={
+            "bt": ax1.plot([],[], linestyle='--', linewidth=1.2, color="#f472b6", label="BT sesión previa")[0],
+            "et": ax1.plot([],[], linestyle='--', linewidth=1.2, color="#22d3ee", label="ET sesión previa")[0],
+            "ror": ax_ror.plot([],[], linestyle=':', linewidth=1.4, color="#a855f7", label="RoR sesión previa")[0],
+        }
+    history_overlay["data"]=data
+    redraw_overlays()
+
+def add_comparison_trace():
+    path=filedialog.askopenfilename(filetypes=(("Samples","*.csv"),("Todos","*.*")))
+    if not path:
+        return
+    data=_parse_session_csv(path)
+    if not data:
+        return
+    color=overlay_colors[len(comparison_traces)%len(overlay_colors)]
+    line=ax1.plot([],[], linestyle='-', linewidth=1.1, color=color, alpha=0.65, label=f"BT: {data['name']}")[0]
+    ror_line=ax_ror.plot([],[], linestyle=':', linewidth=1.0, color=color, alpha=0.9, label=f"RoR: {data['name']}")[0]
+    comparison_traces.append({"line":line,"ror_line":ror_line,"data":data,"color":color})
+    comparison_status.set(f"{len(comparison_traces)} tuestes cargados para comparar")
+    redraw_overlays()
+
+def clear_comparisons():
+    for trace in comparison_traces:
+        trace["line"].set_data([],[])
+        trace["ror_line"].set_data([],[])
+    comparison_traces.clear()
+    comparison_status.set("0 tuestes cargados para comparar")
+    redraw_overlays()
+
+ttk.Button(history_panel, text="📂 Cargar sesión previa", command=load_previous_session).grid(row=0, column=0, sticky="w", padx=(0,8))
+ttk.Label(history_panel, textvariable=history_path_var, style="CardText.TLabel").grid(row=0, column=1, sticky="w")
+btn_compare=ttk.Button(history_panel, text="➕ Añadir a comparación", command=add_comparison_trace)
+btn_compare.grid(row=1, column=0, sticky="w", padx=(0,8), pady=(8,0))
+ttk.Label(history_panel, textvariable=comparison_status, style="CardText.TLabel").grid(row=1, column=1, sticky="w", pady=(8,0))
+ttk.Button(history_panel, text="🧹 Limpiar comparación", command=clear_comparisons).grid(row=1, column=2, sticky="e", padx=(8,0), pady=(8,0))
 
 design_edit_controls=[design_bt_radio, design_et_radio, btn_design_clear]
 
@@ -1115,8 +1272,8 @@ def animate(_):
         except Exception as e:
             log("Sugerencia error: "+str(e))
 
-        for ax in (ax1,ax2):
-            ax.relim(); ax.autoscale_view()
+        ax1.relim(); ax1.autoscale_view()
+        ax_ror.relim(); ax_ror.autoscale_view()
         # dynamic autoscale with margins so ET doesn't look flat
         try:
             import numpy as _np
@@ -1124,6 +1281,11 @@ def animate(_):
             yvals_source=[v for v in et_arr+bt_arr if v==v]
             for pts in (DESIGN["bt_points"], DESIGN["et_points"]):
                 yvals_source.extend([float(p["y"]) for p in pts if p["y"]==p["y"]])
+            if history_overlay["data"]:
+                yvals_source.extend([float(v) for v in history_overlay["data"].get("bt",[]) if v==v])
+                yvals_source.extend([float(v) for v in history_overlay["data"].get("et",[]) if v==v])
+            for trace in comparison_traces:
+                yvals_source.extend([float(v) for v in trace["data"].get("bt",[]) if v==v])
             yvals = _np.array(yvals_source, dtype=float)
             if yvals.size>3:
                 ymin=float(_np.nanmin(yvals)); ymax=float(_np.nanmax(yvals))
@@ -1134,9 +1296,15 @@ def animate(_):
                     upper = lower + 25.0
                 ax1.set_ylim(lower, upper)
             else:
-                ax1.set_ylim(0.0, 250.0)
-            # Focus last segment but always show at least 20 minutes to include forecast
+                ax1.set_ylim(90.0, 240.0)
+
             x_candidates=[]
+            def _extend_max(source_list):
+                try:
+                    if source_list:
+                        x_candidates.append(max(float(v) for v in source_list))
+                except Exception:
+                    pass
             if t_min_arr:
                 x_candidates.append(float(t_min_arr[-1]))
             if bt_proj_t:
@@ -1144,23 +1312,27 @@ def animate(_):
             if et_proj_t:
                 x_candidates.append(float(et_proj_t[-1]/60.0))
             for pts in (DESIGN["bt_points"], DESIGN["et_points"]):
-                if pts:
-                    try:
-                        x_candidates.append(max(float(p["x"]) for p in pts))
-                    except Exception:
-                        pass
+                _extend_max([p.get("x") for p in pts])
+            if history_overlay["data"]:
+                _extend_max([t/60.0 for t in history_overlay["data"].get("t",[])])
+            for trace in comparison_traces:
+                _extend_max([t/60.0 for t in trace["data"].get("t",[])])
             xmax=max(x_candidates+[20.0])
-            if not t_arr and not bt_proj_t and not et_proj_t and any(DESIGN[pts] for pts in ("bt_points","et_points")):
-                xmin=0.0
-            else:
-                xmin=max(0.0, xmax-20.0)
-            ax1.set_xlim(xmin, xmax)
-            # AX2 (RoR)
-            r = _np.array([v for v in ror_arr if v==v] + ([v for v in ror_target_arr if v==v] if len(t_arr)==len(ror_target_arr) else []), dtype=float)
-            if r.size>3:
-                rmin=float(_np.nanmin(r)); rmax=float(_np.nanmax(r)); rpad=max(0.3,(rmax-rmin)*0.25)
-                ax2.set_ylim(rmin-rpad, rmax+rpad)
-            ax2.set_xlim(ax1.get_xlim())
+            try:
+                width=max(1.0,float(x_window_var.get()))
+            except Exception:
+                width=8.0
+            update_pan_limit(xmax)
+            start=min(max(0.0,float(x_offset_var.get())), max(0.0, xmax - width))
+            end=start+width
+            ax1.set_xlim(start, end)
+            ax_ror.set_xlim(start, end)
+
+            try:
+                rmax_slider=max(1.0,float(ror_scale_var.get()))
+            except Exception:
+                rmax_slider=12.0
+            ax_ror.set_ylim(-rmax_slider*0.25, rmax_slider)
         except Exception:
             pass
 
