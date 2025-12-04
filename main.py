@@ -688,34 +688,24 @@ ror_slider=ttk.Scale(view_panel, from_=6, to=30, variable=ror_scale_var, command
 ror_slider.grid(row=0, column=5, sticky="ew")
 apply_view_range()
 
-events_panel=ttk.LabelFrame(plot_body, text="🗓️ Eventos del tueste", style="Card.TLabelframe", padding=(12, 10))
-events_panel.grid(row=1, column=0, columnspan=2, sticky="ew", padx=(0,0))
-events_panel.columnconfigure(0, weight=1)
-events_panel.columnconfigure(1, weight=1)
 event_time_vars={n: tk.StringVar(value="—:—") for n in ["CHARGE","TP","DRY_END","1C","2C","DROP"]}
 event_temp_vars={n: tk.StringVar(value="—.— °C") for n in ["CHARGE","TP","DRY_END","1C","2C","DROP"]}
 phase_var=tk.StringVar(value="Fases: —")
+event_footer_var=tk.StringVar(value="Eventos: —")
 
-event_buttons=ttk.Frame(events_panel, style="Card.TFrame")
-event_buttons.grid(row=0, column=0, sticky="w")
+footer_bar=ttk.Frame(plot_body, style="Card.TFrame")
+footer_bar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=(0,0), pady=(4,0))
+footer_bar.columnconfigure(1, weight=1)
+
+event_buttons=ttk.Frame(footer_bar, style="Card.TFrame")
+event_buttons.grid(row=0, column=0, sticky="w", padx=(0,8))
 for name in ["CHARGE","TP","DRY_END","1C","2C","DROP"]:
-    ttk.Button(event_buttons, text=f"📌 {name}", command=lambda n=name: log_event(n)).pack(side="left", padx=4, pady=2)
+    ttk.Button(event_buttons, text=f"📌 {name}", command=lambda n=name: log_event(n)).pack(side="left", padx=2, pady=2)
 
-ttk.Button(events_panel, textvariable=side_toggle_text, command=toggle_side_controls).grid(row=0, column=1, sticky="e")
+ttk.Button(footer_bar, textvariable=side_toggle_text, command=toggle_side_controls).grid(row=0, column=1, sticky="e")
+ttk.Button(footer_bar, text="💾 Exportar CSV/PNG", command=export_all).grid(row=0, column=2, sticky="e", padx=(8,0))
 
-export_buttons=ttk.Frame(events_panel, style="Card.TFrame")
-export_buttons.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8,0))
-ttk.Button(export_buttons, text="💾 Exportar CSV/PNG", command=export_all).pack(side="left", padx=4, pady=2)
-
-summary_frame=ttk.Frame(events_panel, style="Card.TFrame")
-summary_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10,0))
-summary_frame.columnconfigure(1, weight=1)
-labels=[("CHARGE","⚪"),("TP","🔼"),("DRY_END","🟠"),("1C","🔴"),("2C","🟣"),("DROP","⚫")]
-for r,(name,icon) in enumerate(labels):
-    ttk.Label(summary_frame, text=f"{icon} {name}", style="CardText.TLabel").grid(row=r, column=0, sticky="w", padx=(0,8), pady=2)
-    ttk.Label(summary_frame, textvariable=event_time_vars[name], style="CardText.TLabel").grid(row=r, column=1, sticky="w", pady=2)
-    ttk.Label(summary_frame, textvariable=event_temp_vars[name], style="CardText.TLabel").grid(row=r, column=2, sticky="w", padx=(8,0), pady=2)
-ttk.Label(summary_frame, textvariable=phase_var, style="CardText.TLabel").grid(row=len(labels), column=0, columnspan=3, sticky="w", pady=(8,0))
+ttk.Label(footer_bar, textvariable=event_footer_var, style="CardText.TLabel", wraplength=1200).grid(row=1, column=0, columnspan=3, sticky="w", pady=(4,0))
 
 history_path_var=tk.StringVar(value="Ninguna sesión cargada")
 comparison_status=tk.StringVar(value="0 tuestes cargados para comparar")
@@ -1073,6 +1063,7 @@ def update_event_summary():
     if start is None or end is None or end<=start:
         phase_var.set("Fases: —")
         phase_text.set_text("")
+        event_footer_var.set("Eventos: " + " | ".join([f"{k}: {event_time_vars[k].get()} @ {event_temp_vars[k].get()}" for k in event_time_vars]))
         return
     drying = (dry-start) if dry is not None and dry>start else None
     maillard = (fc-dry) if fc is not None and dry is not None and fc>dry else None
@@ -1088,6 +1079,7 @@ def update_event_summary():
     if not parts:
         phase_var.set("Fases: —")
         phase_text.set_text("")
+        event_footer_var.set("Eventos: " + " | ".join([f"{k}: {event_time_vars[k].get()} @ {event_temp_vars[k].get()}" for k in event_time_vars]))
         return
     desc=[]
     for name,dur in parts:
@@ -1095,6 +1087,8 @@ def update_event_summary():
         desc.append(f"{name} {pct:.1f}%")
     phase_var.set("Fases: "+" | ".join(desc))
     phase_text.set_text(" · ".join(desc))
+    footer_events=[f"{k}: {event_time_vars[k].get()} @ {event_temp_vars[k].get()}" for k in event_time_vars]
+    event_footer_var.set(" | ".join(footer_events + [phase_var.get()]))
 
 def annotate_event(name, t, temp_c):
     tmin = (t/60.0) if t is not None else 0.0
@@ -1140,7 +1134,7 @@ def redraw_empty():
     bt_info_text.set_text(""); et_info_text.set_text(""); eta1_plot_text.set_text("")
     for name in event_time_vars:
         event_time_vars[name].set("—:—"); event_temp_vars[name].set("—.— °C")
-    phase_var.set("Fases: —"); phase_text.set_text("")
+    phase_var.set("Fases: —"); phase_text.set_text(""); event_footer_var.set("Eventos: —")
     canvas.draw_idle()
 
 def current_et_c():
