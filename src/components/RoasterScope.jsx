@@ -31,6 +31,7 @@ export default function RoasterScope({
 }) {
   const [isOn, setIsOn] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
+  const [chargeAlignment, setChargeAlignment] = useState(0);
   const [data, setData] = useState(
     incomingData ?? generateDemoProfile()
   );
@@ -53,6 +54,15 @@ export default function RoasterScope({
     return out;
   }, [data]);
 
+  const alignedData = useMemo(
+    () =>
+      withRoR.map((point) => ({
+        ...point,
+        alignedT: +(point.t + chargeAlignment).toFixed(3),
+      })),
+    [withRoR, chargeAlignment]
+  );
+
   const reset = () => {
     setIsRunning(false);
     setData(incomingData ?? generateDemoProfile());
@@ -72,10 +82,10 @@ export default function RoasterScope({
   const TIME_STEP = 2;
 
   const TIME_MAX = useMemo(() => {
-    const latestPoint = withRoR.at(-1)?.t ?? TIME_BASE_MAX;
+    const latestPoint = alignedData.at(-1)?.alignedT ?? TIME_BASE_MAX;
     const roundedMax = Math.ceil(latestPoint / TIME_STEP) * TIME_STEP;
     return Math.max(TIME_BASE_MAX, roundedMax);
-  }, [TIME_STEP, TIME_BASE_MAX, withRoR]);
+  }, [TIME_STEP, TIME_BASE_MAX, alignedData]);
 
   const timeTicks = useMemo(() => {
     const ticks = [];
@@ -108,12 +118,26 @@ export default function RoasterScope({
         </div>
       </div>
 
+      <div className="flex items-center justify-end gap-3 mb-4 text-sm text-neutral-200">
+        <div className="uppercase tracking-wide text-xs text-neutral-400">Alinear al CHARGE</div>
+        <input
+          type="range"
+          min={-4}
+          max={4}
+          step={0.1}
+          value={chargeAlignment}
+          onChange={(e) => setChargeAlignment(parseFloat(e.target.value))}
+          className="w-48 accent-orange-400"
+        />
+        <div className="tabular-nums w-16 text-right">{chargeAlignment.toFixed(1)} min</div>
+      </div>
+
       {/* Main Area: Chart + Right Legend */}
       <div className="grid grid-cols-12 gap-4 h-[calc(80vh-4.5rem)]">
         {/* Chart */}
         <div className="col-span-9 bg-neutral-900 rounded-2xl p-2 shadow-xl border border-neutral-800">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={withRoR} margin={{ top: 12, right: 24, bottom: 12, left: 0 }}>
+            <LineChart data={alignedData} margin={{ top: 12, right: 24, bottom: 12, left: 0 }}>
               <defs>
                 <linearGradient id="gridFade" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0%" stopColor="currentColor" stopOpacity={0.18} />
@@ -127,7 +151,7 @@ export default function RoasterScope({
               <ReferenceArea y1={220} y2={240} strokeOpacity={0} fill="#ffffff" fillOpacity={0.06} />
 
               <XAxis
-                dataKey="t"
+                dataKey="alignedT"
                 type="number"
                 domain={[TIME_MIN, TIME_MAX]}
                 ticks={timeTicks}
