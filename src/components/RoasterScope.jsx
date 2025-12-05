@@ -118,18 +118,27 @@ export default function RoasterScope({
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3 mb-4 text-sm text-neutral-200">
-        <div className="uppercase tracking-wide text-xs text-neutral-400">Alinear al CHARGE</div>
-        <input
-          type="range"
-          min={-4}
-          max={4}
-          step={0.1}
-          value={chargeAlignment}
-          onChange={(e) => setChargeAlignment(parseFloat(e.target.value))}
-          className="w-48 accent-orange-400"
-        />
-        <div className="tabular-nums w-16 text-right">{chargeAlignment.toFixed(1)} min</div>
+      <div className="mb-4">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 py-3 shadow flex items-center gap-4 text-sm text-neutral-100">
+          <div className="uppercase tracking-wide text-xs text-neutral-400 min-w-[8rem]">
+            Alinear al CHARGE
+          </div>
+          <div className="flex-1 flex items-center gap-3">
+            <input
+              aria-label="Alinear curvas al evento CHARGE"
+              type="range"
+              min={-4}
+              max={4}
+              step={0.1}
+              value={chargeAlignment}
+              onChange={(e) => setChargeAlignment(parseFloat(e.target.value))}
+              className="w-full accent-orange-400"
+            />
+            <div className="tabular-nums w-16 text-right text-neutral-200">
+              {chargeAlignment.toFixed(1)} min
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Main Area: Chart + Right Legend */}
