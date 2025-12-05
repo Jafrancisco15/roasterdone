@@ -7,6 +7,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
+from matplotlib import ticker as mpl_ticker
 import traceback
 
 from phidget_reader import ETReader
@@ -545,6 +546,39 @@ for name in ["CHARGE","TP","DRY_END","1C","2C","DROP"]:
     ttk.Button(event_buttons, text=f"📌 {name}", command=lambda n=name: log_event(n)).pack(side="left", padx=4, pady=2)
 ttk.Button(event_buttons, text="💾 Exportar CSV/PNG", command=export_all).pack(side="left", padx=4, pady=2)
 
+charge_align_var=tk.DoubleVar(value=0.0)
+charge_align_readout=tk.StringVar(value="+0.0 min")
+
+def update_charge_align_readout(*_):
+    try:
+        charge_align_readout.set(f"{float(charge_align_var.get()):+.1f} min")
+    except Exception:
+        charge_align_readout.set("+0.0 min")
+
+align_frame=ttk.Frame(events_panel, style="Card.TFrame")
+align_frame.pack(fill="x", pady=(8, 0))
+ttk.Label(
+    align_frame,
+    text="Alinear curvas al CHARGE",
+    style="CardText.TLabel",
+).grid(row=0, column=0, sticky="w")
+ttk.Label(
+    align_frame,
+    textvariable=charge_align_readout,
+    style="MetricTitle.TLabel",
+).grid(row=0, column=1, sticky="e", padx=(12,0))
+align_slider=ttk.Scale(
+    align_frame,
+    from_=-4.0,
+    to=4.0,
+    orient="horizontal",
+    variable=charge_align_var,
+    length=320,
+)
+align_slider.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6,0))
+align_frame.columnconfigure(0, weight=1)
+align_frame.columnconfigure(1, weight=0)
+
 plot_container=ttk.Frame(plot_card, style="Card.TFrame")
 plot_container.pack(fill="both", expand=True)
 fig,(ax1,ax2)=plt.subplots(2,1,figsize=(10.5,7.0),dpi=110)
@@ -557,6 +591,14 @@ for ax in (ax1,ax2):
 ax1.set_title("Temperaturas del tueste (ET vs BT)"); ax2.set_title("Rate of Rise (objetivo vs real)")
 ax1.set_ylabel("Temperatura (°C)")
 ax2.set_ylabel("°C / min")
+time_locator = mpl_ticker.MultipleLocator(2.0)
+temp_locator = mpl_ticker.MultipleLocator(10.0)
+for ax in (ax1, ax2):
+    ax.xaxis.set_major_locator(time_locator)
+ax1.yaxis.set_major_locator(temp_locator)
+ax1.set_ylim(0.0, 260.0)
+ax1.set_xlim(0.0, 16.0)
+ax2.set_xlim(0.0, 16.0)
 ln_et,=ax1.plot([],[],label="ET",linewidth=2.2,color="#60a5fa")
 ln_bt,=ax1.plot([],[],label="BT_est",linewidth=2.2,color="#f59e0b")
 ln_set,=ax1.plot([],[],label="Set",linewidth=1.6,color="#94a3b8",linestyle="--")
@@ -575,7 +617,7 @@ et_future_marker,=ax1.plot([],[],marker="D",markersize=6,color="#60a5fa",linesty
 bt_info_text=ax1.text(0.02,0.96,"",transform=ax1.transAxes,color="#fbbf24",fontsize=10,va="top")
 et_info_text=ax1.text(0.02,0.88,"",transform=ax1.transAxes,color="#93c5fd",fontsize=10,va="top")
 eta1_plot_text=ax1.text(0.98,0.96,"",transform=ax1.transAxes,color="#f472b6",fontsize=10,va="top",ha="right")
-ax1.set_ylim(0.0, 250.0)
+ax1.set_ylim(0.0, 260.0)
 ax1.legend(facecolor=BG, labelcolor=FG, edgecolor=GRID, loc="upper left", bbox_to_anchor=(1.02,1.0), borderaxespad=0.0)
 ln_ror,=ax2.plot([],[],label="RoR",linewidth=2.0,color="#a3e635")
 ln_ror_t,=ax2.plot([],[],label="RoR target",linewidth=1.6,color="#ef4444",linestyle="--")
@@ -584,6 +626,18 @@ ax1.set_xlabel("Tiempo (min)"); ax2.set_xlabel("Tiempo (min)")
 canvas=FigureCanvasTkAgg(fig, master=plot_container)
 canvas_widget=canvas.get_tk_widget()
 canvas_widget.pack(fill="both",expand=True)
+
+def on_charge_alignment_change(*_):
+    update_charge_align_readout()
+    refresh_design_plot()
+    update_event_annotations()
+    try:
+        canvas.draw_idle()
+    except Exception:
+        pass
+
+charge_align_var.trace_add("write", on_charge_alignment_change)
+update_charge_align_readout()
 
 design_edit_controls=[design_bt_radio, design_et_radio, btn_design_clear]
 
@@ -594,9 +648,10 @@ def update_design_summary():
     design_status_var.set(summary)
 
 def refresh_design_plot():
-    bt_x=[p["x"] for p in DESIGN["bt_points"]]
+    offset = float(charge_align_var.get())
+    bt_x=[p["x"] + offset for p in DESIGN["bt_points"]]
     bt_y=[p["y"] for p in DESIGN["bt_points"]]
-    et_x=[p["x"] for p in DESIGN["et_points"]]
+    et_x=[p["x"] + offset for p in DESIGN["et_points"]]
     et_y=[p["y"] for p in DESIGN["et_points"]]
     design_bt_line.set_data(bt_x, bt_y)
     design_bt_points.set_data(bt_x, bt_y)
@@ -771,14 +826,16 @@ canvas.mpl_connect('button_press_event', on_design_press)
 canvas.mpl_connect('motion_notify_event', on_design_motion)
 canvas.mpl_connect('button_release_event', on_design_release)
 
-event_artists=[]
+event_annotations=[]
 
 def annotate_event(name, t, temp_c):
+    offset = float(charge_align_var.get())
     tmin = (t/60.0) if t is not None else 0.0
-    v=ax1.axvline(tmin, color="#f87171", linestyle="--", linewidth=1.2, alpha=0.9)
-    marker=ax1.plot(tmin, temp_c, marker="o", color="#f87171", markersize=5)[0]
+    shifted_t = tmin + offset
+    v=ax1.axvline(shifted_t, color="#f87171", linestyle="--", linewidth=1.2, alpha=0.9)
+    marker=ax1.plot(shifted_t, temp_c, marker="o", color="#f87171", markersize=5)[0]
     text=ax1.text(
-        tmin,
+        shifted_t,
         temp_c+3,
         f"{name}\n{(t/60):.2f} min @ {temp_c:.1f}°C",
         color=FG,
@@ -787,7 +844,30 @@ def annotate_event(name, t, temp_c):
         va="bottom",
         fontsize=9,
     )
-    event_artists.append((v,marker,text))
+    event_annotations.append({"name": name, "t_sec": t, "temp_c": temp_c, "line": v, "marker": marker, "text": text})
+
+def update_event_annotations():
+    offset = float(charge_align_var.get())
+    for ann in event_annotations:
+        tmin = (ann["t_sec"]/60.0 if ann.get("t_sec") is not None else 0.0) + offset
+        line = ann.get("line")
+        marker = ann.get("marker")
+        if line is not None:
+            try:
+                line.set_xdata([tmin, tmin])
+            except Exception:
+                pass
+        if marker is not None:
+            try:
+                marker.set_data([tmin], [ann.get("temp_c", 0.0)])
+            except Exception:
+                pass
+        try:
+            text_artist = ann.get("text")
+            if text_artist is not None:
+                text_artist.set_position((tmin, ann.get("temp_c", 0.0)+3))
+        except Exception:
+            pass
 
 def log_event(n):
     t=0.0 if not S.t0 else time.time()-S.t0
@@ -806,11 +886,14 @@ def log(msg):
         pass
 
 def redraw_empty():
-    for arts in event_artists:
-        for a in arts: 
-            try: a.remove()
-            except Exception: pass
-    event_artists.clear()
+    for ann in event_annotations:
+        for a in (ann.get("line"), ann.get("marker"), ann.get("text")):
+            try:
+                if a is not None:
+                    a.remove()
+            except Exception:
+                pass
+    event_annotations.clear()
     for ln in (ln_et, ln_bt, ln_set, ln_ror, ln_ror_t, ln_bt_proj, ln_et_proj,
                eta1_line,
                bt_now_marker, bt_future_marker, et_now_marker, et_future_marker):
@@ -877,6 +960,7 @@ def animate(_):
         t=now-S.t0
 
         et=current_et_c()
+        offset_min = float(charge_align_var.get())
 
         ror_nominal = 7.0
         eta_fc = None
@@ -934,6 +1018,7 @@ def animate(_):
 
         t_arr=[s["t_sec"] for s in S.samples]
         t_min_arr=[t/60.0 for t in t_arr]
+        t_display=[tm + offset_min for tm in t_min_arr]
         et_arr=[s["et_c"] for s in S.samples]
         bt_arr=[s.get("bt_est_c",np.nan) for s in S.samples]
         # Projection: linear regression on last ~60 samples (~30s at 2Hz) to project 5 minutes ahead
@@ -1035,10 +1120,10 @@ def animate(_):
             # fallback constant
             ror_target_arr = [7.0]*len(t_arr)
 
-        ln_et.set_data(t_min_arr, et_arr); ln_bt.set_data(t_min_arr, bt_arr); ln_set.set_data(t_min_arr, [S.set_temp]*len(t_arr))
-        ln_ror.set_data(t_min_arr, ror_arr); ln_ror_t.set_data(t_min_arr, ror_target_arr)
-        ln_bt_proj.set_data([tp/60.0 for tp in bt_proj_t], bt_proj_arr)
-        ln_et_proj.set_data([tp/60.0 for tp in et_proj_t], et_proj_arr)
+        ln_et.set_data(t_display, et_arr); ln_bt.set_data(t_display, bt_arr); ln_set.set_data(t_display, [S.set_temp]*len(t_arr))
+        ln_ror.set_data(t_display, ror_arr); ln_ror_t.set_data(t_display, ror_target_arr)
+        ln_bt_proj.set_data([tp/60.0 + offset_min for tp in bt_proj_t], bt_proj_arr)
+        ln_et_proj.set_data([tp/60.0 + offset_min for tp in et_proj_t], et_proj_arr)
 
         def _set_marker(marker, tx, ty):
             try:
@@ -1057,11 +1142,11 @@ def animate(_):
         et_current = et_arr[-1] if et_arr else float('nan')
         bt_future_val = bt_proj_arr[-1] if bt_proj_arr else bt_current
         et_future_val = et_proj_arr[-1] if et_proj_arr else et_current
-        bt_future_t = bt_proj_t[-1]/60.0 if bt_proj_t else float('nan')
-        et_future_t = et_proj_t[-1]/60.0 if et_proj_t else float('nan')
+        bt_future_t = (bt_proj_t[-1]/60.0 + offset_min) if bt_proj_t else float('nan')
+        et_future_t = (et_proj_t[-1]/60.0 + offset_min) if et_proj_t else float('nan')
 
-        _set_marker(bt_now_marker, current_t_min, bt_current)
-        _set_marker(et_now_marker, current_t_min, et_current)
+        _set_marker(bt_now_marker, current_t_min + offset_min, bt_current)
+        _set_marker(et_now_marker, current_t_min + offset_min, et_current)
         _set_marker(bt_future_marker, bt_future_t, bt_future_val)
         _set_marker(et_future_marker, et_future_t, et_future_val)
 
@@ -1090,7 +1175,7 @@ def animate(_):
             return f"ETA 1C: {mm:02d}:{ss:02d}"
 
         if eta_fc is not None and t_arr:
-            fc_time_min = (t_arr[-1] + eta_fc) / 60.0
+            fc_time_min = ((t_arr[-1] + eta_fc) / 60.0) + offset_min
             if math.isfinite(fc_time_min):
                 y0, y1 = ax1.get_ylim()
                 if not (math.isfinite(y0) and math.isfinite(y1)):
@@ -1117,50 +1202,29 @@ def animate(_):
 
         for ax in (ax1,ax2):
             ax.relim(); ax.autoscale_view()
-        # dynamic autoscale with margins so ET doesn't look flat
         try:
             import numpy as _np
-            # AX1 limits
-            yvals_source=[v for v in et_arr+bt_arr if v==v]
-            for pts in (DESIGN["bt_points"], DESIGN["et_points"]):
-                yvals_source.extend([float(p["y"]) for p in pts if p["y"]==p["y"]])
-            yvals = _np.array(yvals_source, dtype=float)
-            if yvals.size>3:
-                ymin=float(_np.nanmin(yvals)); ymax=float(_np.nanmax(yvals))
-                pad=max(3.0,(ymax-ymin)*0.15)
-                lower = min(0.0, ymin-pad)
-                upper = max(250.0, ymax+pad)
-                if upper - lower < 25.0:
-                    upper = lower + 25.0
-                ax1.set_ylim(lower, upper)
-            else:
-                ax1.set_ylim(0.0, 250.0)
-            # Focus last segment but always show at least 20 minutes to include forecast
-            x_candidates=[]
-            if t_min_arr:
-                x_candidates.append(float(t_min_arr[-1]))
+            ax1.set_ylim(0.0, 260.0)
+            x_candidates=[16.0]
+            if t_display:
+                x_candidates.append(float(max(t_display)))
             if bt_proj_t:
-                x_candidates.append(float(bt_proj_t[-1]/60.0))
+                x_candidates.append(max((float(tp)/60.0) + offset_min for tp in bt_proj_t))
             if et_proj_t:
-                x_candidates.append(float(et_proj_t[-1]/60.0))
+                x_candidates.append(max((float(tp)/60.0) + offset_min for tp in et_proj_t))
             for pts in (DESIGN["bt_points"], DESIGN["et_points"]):
                 if pts:
                     try:
-                        x_candidates.append(max(float(p["x"]) for p in pts))
+                        x_candidates.append(max(float(p["x"]) + offset_min for p in pts))
                     except Exception:
                         pass
-            xmax=max(x_candidates+[20.0])
-            if not t_arr and not bt_proj_t and not et_proj_t and any(DESIGN[pts] for pts in ("bt_points","et_points")):
-                xmin=0.0
-            else:
-                xmin=max(0.0, xmax-20.0)
-            ax1.set_xlim(xmin, xmax)
-            # AX2 (RoR)
+            xmax=max(x_candidates)
+            ax1.set_xlim(0.0, xmax)
+            ax2.set_xlim(ax1.get_xlim())
             r = _np.array([v for v in ror_arr if v==v] + ([v for v in ror_target_arr if v==v] if len(t_arr)==len(ror_target_arr) else []), dtype=float)
             if r.size>3:
                 rmin=float(_np.nanmin(r)); rmax=float(_np.nanmax(r)); rpad=max(0.3,(rmax-rmin)*0.25)
                 ax2.set_ylim(rmin-rpad, rmax+rpad)
-            ax2.set_xlim(ax1.get_xlim())
         except Exception:
             pass
 

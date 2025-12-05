@@ -31,6 +31,7 @@ export default function RoasterScope({
 }) {
   const [isOn, setIsOn] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
+  const [chargeAlignment, setChargeAlignment] = useState(0);
   const [data, setData] = useState(
     incomingData ?? generateDemoProfile()
   );
@@ -53,6 +54,15 @@ export default function RoasterScope({
     return out;
   }, [data]);
 
+  const alignedData = useMemo(
+    () =>
+      withRoR.map((point) => ({
+        ...point,
+        alignedT: +(point.t + chargeAlignment).toFixed(3),
+      })),
+    [withRoR, chargeAlignment]
+  );
+
   const reset = () => {
     setIsRunning(false);
     setData(incomingData ?? generateDemoProfile());
@@ -64,9 +74,34 @@ export default function RoasterScope({
   // Axis domains – tuned to resemble the screenshot
   const TEMP_MIN = 0;
   const TEMP_MAX = 260; // °C
+  const TEMP_STEP = 10;
   const ROR_MIN = 0;
   const ROR_MAX = 50; // °C/min
-  const TIME_MAX = Math.max(10, Math.ceil((withRoR.at(-1)?.t ?? 10))); // ~10 min span
+  const TIME_MIN = 0;
+  const TIME_BASE_MAX = 16;
+  const TIME_STEP = 2;
+
+  const TIME_MAX = useMemo(() => {
+    const latestPoint = alignedData.at(-1)?.alignedT ?? TIME_BASE_MAX;
+    const roundedMax = Math.ceil(latestPoint / TIME_STEP) * TIME_STEP;
+    return Math.max(TIME_BASE_MAX, roundedMax);
+  }, [TIME_STEP, TIME_BASE_MAX, alignedData]);
+
+  const timeTicks = useMemo(() => {
+    const ticks = [];
+    for (let t = TIME_MIN; t <= TIME_MAX; t += TIME_STEP) {
+      ticks.push(t);
+    }
+    return ticks;
+  }, [TIME_MAX]);
+
+  const tempTicks = useMemo(() => {
+    const ticks = [];
+    for (let t = TEMP_MIN; t <= TEMP_MAX; t += TEMP_STEP) {
+      ticks.push(t);
+    }
+    return ticks;
+  }, []);
 
   return (
     <div className="w-full h-[80vh] bg-neutral-950 text-neutral-50 p-3 select-none">
@@ -83,12 +118,35 @@ export default function RoasterScope({
         </div>
       </div>
 
+      <div className="mb-4">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 py-3 shadow flex items-center gap-4 text-sm text-neutral-100">
+          <div className="uppercase tracking-wide text-xs text-neutral-400 min-w-[8rem]">
+            Alinear al CHARGE
+          </div>
+          <div className="flex-1 flex items-center gap-3">
+            <input
+              aria-label="Alinear curvas al evento CHARGE"
+              type="range"
+              min={-4}
+              max={4}
+              step={0.1}
+              value={chargeAlignment}
+              onChange={(e) => setChargeAlignment(parseFloat(e.target.value))}
+              className="w-full accent-orange-400"
+            />
+            <div className="tabular-nums w-16 text-right text-neutral-200">
+              {chargeAlignment.toFixed(1)} min
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Area: Chart + Right Legend */}
       <div className="grid grid-cols-12 gap-4 h-[calc(80vh-4.5rem)]">
         {/* Chart */}
         <div className="col-span-9 bg-neutral-900 rounded-2xl p-2 shadow-xl border border-neutral-800">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={withRoR} margin={{ top: 12, right: 24, bottom: 12, left: 0 }}>
+            <LineChart data={alignedData} margin={{ top: 12, right: 24, bottom: 12, left: 0 }}>
               <defs>
                 <linearGradient id="gridFade" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0%" stopColor="currentColor" stopOpacity={0.18} />
@@ -102,12 +160,14 @@ export default function RoasterScope({
               <ReferenceArea y1={220} y2={240} strokeOpacity={0} fill="#ffffff" fillOpacity={0.06} />
 
               <XAxis
-                dataKey="t"
+                dataKey="alignedT"
                 type="number"
-                domain={[0, TIME_MAX]}
+                domain={[TIME_MIN, TIME_MAX]}
+                ticks={timeTicks}
                 tick={{ fill: "#bfbfbf" }}
                 axisLine={{ stroke: "#777" }}
                 tickLine={{ stroke: "#777" }}
+                minTickGap={12}
               >
                 <Label value="time (min)" position="insideBottomRight" offset={-4} fill="#bfbfbf" />
               </XAxis>
@@ -116,6 +176,7 @@ export default function RoasterScope({
                 yAxisId="temp"
                 orientation="left"
                 domain={[TEMP_MIN, TEMP_MAX]}
+                ticks={tempTicks}
                 tick={{ fill: "#bfbfbf" }}
                 axisLine={{ stroke: "#777" }}
                 tickLine={{ stroke: "#777" }}
